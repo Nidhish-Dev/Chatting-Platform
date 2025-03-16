@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
-import { doc, getDoc, updateDoc, Timestamp, collection, getDocs } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, Timestamp, collection, getDocs } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, ArrowLeft, User, LogOut } from "lucide-react";
 import { signOut } from "firebase/auth";
@@ -41,42 +41,41 @@ export default function ChatGroupPage() {
   }, []);
 
   useEffect(() => {
-    const fetchGroupDetails = async () => {
-      if (!user || !groupId) return;
+    if (!user || !groupId) return;
 
-      try {
-        const groupRef = doc(db, "chatGroups", groupId);
-        const groupDoc = await getDoc(groupRef);
-        if (groupDoc.exists()) {
-          const groupData = groupDoc.data();
-          const members = groupData.members || [];
-          setGroupMembers(members);
+    // Set up real-time listener for group details
+    const groupRef = doc(db, "chatGroups", groupId);
+    const unsubscribe = onSnapshot(groupRef, (groupDoc) => {
+      if (groupDoc.exists()) {
+        const groupData = groupDoc.data();
+        const members = groupData.members || [];
+        setGroupMembers(members);
 
-          if (!members.includes(user.uid)) {
-            setNewMessage("");
-          }
-
-          // Sanitize and log messages from Firestore
-          const fetchedMessages = (groupData.messages || []).map((msg: any, index: any) => {
-            console.log(`Message ${index} from Firestore:`, msg); // Debug log
-            return {
-              id: msg.id || `${msg.timestamp?.toMillis?.() || Date.now()}`,
-              text: typeof msg.text === "string" ? msg.text : "",
-              sender: typeof msg.sender === "string" ? msg.sender : "unknown",
-              createdAt: msg.timestamp instanceof Timestamp ? msg.timestamp : Timestamp.now(),
-            };
-          });
-
-          console.log("Sanitized Fetched Messages:", fetchedMessages); // Debug log
-          setMessages(fetchedMessages);
-        } else {
-          router.push("/");
+        if (!members.includes(user.uid)) {
+          setNewMessage("");
         }
-      } catch (error) {
-        console.error("Error fetching group details:", error);
-      }
-    };
 
+        // Sanitize and log messages from Firestore
+        const fetchedMessages = (groupData.messages || []).map((msg: any, index: any) => {
+          console.log(`Message ${index} from Firestore:`, msg); // Debug log
+          return {
+            id: msg.id || `${msg.timestamp?.toMillis?.() || Date.now()}`,
+            text: typeof msg.text === "string" ? msg.text : "",
+            sender: typeof msg.sender === "string" ? msg.sender : "unknown",
+            createdAt: msg.timestamp instanceof Timestamp ? msg.timestamp : Timestamp.now(),
+          };
+        });
+
+        console.log("Sanitized Fetched Messages:", fetchedMessages); // Debug log
+        setMessages(fetchedMessages);
+      } else {
+        router.push("/");
+      }
+    }, (error) => {
+      console.error("Error listening to group details:", error);
+    });
+
+    // Fetch users (one-time fetch is fine since user data doesn't change often)
     const fetchUsers = async () => {
       try {
         const usersRef = collection(db, "users");
@@ -96,10 +95,10 @@ export default function ChatGroupPage() {
       }
     };
 
-    if (user && groupId) {
-      fetchGroupDetails();
-      fetchUsers();
-    }
+    fetchUsers();
+
+    // Clean up the listener on unmount
+    return () => unsubscribe();
   }, [user, groupId, router]);
 
   useEffect(() => {
@@ -149,10 +148,7 @@ export default function ChatGroupPage() {
         messages: updatedMessages,
       });
 
-      setMessages([
-        ...messages,
-        { ...messageData, id: `${messageData.timestamp.toMillis()}`, createdAt: messageData.timestamp },
-      ]);
+      // No need to call setMessages here since onSnapshot will handle the update
       setNewMessage("");
     } catch (error) {
       console.error("Error sending message:", error);
