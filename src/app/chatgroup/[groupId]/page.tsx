@@ -23,8 +23,8 @@ interface User {
 
 export default function ChatGroupPage() {
   const [user, setUser] = useState(auth.currentUser);
-  const [groupMembers, setGroupMembers] = useState<string[]>([]); // Store member UIDs
-  const [memberNames, setMemberNames] = useState<string[]>([]); // Store member display names
+  const [groupMembers, setGroupMembers] = useState<string[]>([]);
+  const [memberNames, setMemberNames] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [userList, setUserList] = useState<User[]>([]);
@@ -52,19 +52,23 @@ export default function ChatGroupPage() {
           const members = groupData.members || [];
           setGroupMembers(members);
 
-          // Check if the current user is a member
           if (!members.includes(user.uid)) {
-            setNewMessage(""); // Clear input if not a member
+            setNewMessage("");
           }
 
-          setMessages(
-            (groupData.messages || []).map((msg: any) => ({
-              id: msg.id || `${msg.timestamp.toMillis()}`,
-              text: msg.text,
-              sender: msg.sender,
-              createdAt: msg.timestamp,
-            }))
-          );
+          // Sanitize and log messages from Firestore
+          const fetchedMessages = (groupData.messages || []).map((msg: any, index: any) => {
+            console.log(`Message ${index} from Firestore:`, msg); // Debug log
+            return {
+              id: msg.id || `${msg.timestamp?.toMillis?.() || Date.now()}`,
+              text: typeof msg.text === "string" ? msg.text : "",
+              sender: typeof msg.sender === "string" ? msg.sender : "unknown",
+              createdAt: msg.timestamp instanceof Timestamp ? msg.timestamp : Timestamp.now(),
+            };
+          });
+
+          console.log("Sanitized Fetched Messages:", fetchedMessages); // Debug log
+          setMessages(fetchedMessages);
         } else {
           router.push("/");
         }
@@ -79,17 +83,13 @@ export default function ChatGroupPage() {
         const usersSnapshot = await getDocs(usersRef);
         const usersList = usersSnapshot.docs.map((doc) => {
           const data = doc.data();
-          console.log("User Document:", data); // Debug: Log each user document
           return {
             uid: data.uid || doc.id,
-            displayName: data.displayName || data.name || "Unknown User", // Check for both displayName and name
+            displayName: data.displayName || data.name || "Unknown User",
             photoURL: data.photoURL,
           };
         });
         setUserList(usersList);
-        console.log("User List:", usersList); // Debug: Log the final userList
-
-        // Update member names after setting userList
         updateMemberNames(usersList, groupMembers);
       } catch (error) {
         console.error("Error fetching users:", error);
@@ -102,19 +102,16 @@ export default function ChatGroupPage() {
     }
   }, [user, groupId, router]);
 
-  // Separate effect to update member names when groupMembers or userList changes
   useEffect(() => {
     updateMemberNames(userList, groupMembers);
   }, [userList, groupMembers]);
 
-  // Helper function to update member names
   const updateMemberNames = (users: User[], members: string[]) => {
     const names = members.map((memberId) => {
       const member = users.find((u) => u.uid === memberId);
-      return member?.displayName || "Unknown User"; // Fallback to "Unknown User"
+      return member?.displayName || "Unknown User";
     });
     setMemberNames(names);
-    console.log("Member Names:", names); // Debug: Log the member names
   };
 
   useEffect(() => {
@@ -124,15 +121,30 @@ export default function ChatGroupPage() {
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !user || !groupId) return;
 
+    // Sanitize and log new message data
     const messageData = {
-      sender: user.uid,
-      text: newMessage,
+      sender: user.uid || "unknown",
+      text: newMessage || "",
       timestamp: Timestamp.now(),
     };
+    console.log("New Message Data:", messageData); // Debug log
 
     try {
       const groupRef = doc(db, "chatGroups", groupId);
-      const updatedMessages = [...messages, messageData];
+      // Sanitize existing messages before adding the new one
+      const sanitizedMessages = messages.map((msg, index) => {
+        console.log(`Existing Message ${index} before sanitization:`, msg); // Debug log
+        return {
+          id: msg.id,
+          sender: typeof msg.sender === "string" ? msg.sender : "unknown",
+          text: typeof msg.text === "string" ? msg.text : "",
+          createdAt: msg.createdAt instanceof Timestamp ? msg.createdAt : Timestamp.now(),
+        };
+      });
+      console.log("Sanitized Existing Messages:", sanitizedMessages); // Debug log
+
+      const updatedMessages = [...sanitizedMessages, messageData];
+      console.log("Updated Messages before updateDoc:", updatedMessages); // Debug log
       await updateDoc(groupRef, {
         messages: updatedMessages,
       });
@@ -165,12 +177,10 @@ export default function ChatGroupPage() {
     );
   }
 
-  // Check if the current user is a member of the group
   const isMember = groupMembers.includes(user.uid);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white flex flex-col">
-      {/* Fixed Header */}
       <motion.header
         initial={{ y: -100 }}
         animate={{ y: 0 }}
@@ -203,13 +213,12 @@ export default function ChatGroupPage() {
         </motion.button>
       </motion.header>
 
-      {/* Scrollable Chat Messages */}
       <div className="flex-1 pt-20 pb-20 overflow-y-auto">
         <div className="p-4 md:p-6 space-y-4 md:space-y-6">
           <AnimatePresence>
             {messages.map((msg) => {
               const sender = userList.find((u) => u.uid === msg.sender);
-              const senderName = sender?.displayName || "Unknown User"; // Fallback to "Unknown User"
+              const senderName = sender?.displayName || "Unknown User";
               return (
                 <motion.div
                   key={msg.id}
@@ -252,7 +261,6 @@ export default function ChatGroupPage() {
         </div>
       </div>
 
-      {/* Fixed Message Input - Only visible to group members */}
       {isMember && (
         <motion.footer
           initial={{ y: 100 }}
