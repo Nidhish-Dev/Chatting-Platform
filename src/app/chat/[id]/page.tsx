@@ -126,7 +126,7 @@ export default function ChatRoom() {
       </motion.header>
 
       {/* Scrollable Chat Messages */}
-      <div className="flex-1 pt-20 pb-20 overflow-y-auto" style={{ perspective: "1000px" }}>
+      <div className="flex-1 pt-20 pb-20 overflow-y-auto">
         <div className="p-4 md:p-6 space-y-4 md:space-y-6">
           <AnimatePresence>
             {messages.map((msg) => (
