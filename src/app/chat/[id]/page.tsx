@@ -3,9 +3,22 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
-import { collection, addDoc, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, Timestamp, DocumentData } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  doc,
+  getDoc,
+  updateDoc,
+  Timestamp,
+  DocumentData,
+} from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, ArrowLeft, User, Reply } from "lucide-react";
+import { Send, ArrowLeft, User, Reply, Paperclip, Smile } from "lucide-react";
+import EmojiPicker from "emoji-picker-react";
 
 interface Message {
   id: string;
@@ -14,6 +27,7 @@ interface Message {
   createdAt: Timestamp;
   isRead: boolean;
   replyTo?: string;
+  imageBase64?: string; // Added for attachments
 }
 
 const themes = {
@@ -78,8 +92,11 @@ export default function ChatRoom() {
   const [receiver, setReceiver] = useState<{ name: string; photoURL: string } | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [theme, setTheme] = useState("love");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const replyButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const currentUser = auth.currentUser;
   const chatId = [currentUser?.uid, receiverId].sort().join("_");
@@ -116,6 +133,7 @@ export default function ChatRoom() {
           createdAt: data.createdAt || Timestamp.now(),
           isRead: data.isRead || false,
           replyTo: data.replyTo || undefined,
+          imageBase64: data.imageBase64 || undefined,
         };
       });
 
@@ -129,14 +147,55 @@ export default function ChatRoom() {
     });
 
     return () => unsubscribe();
-  }, [chatId]);
+  }, [chatId, currentUser]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d")!;
+        let { width, height } = img;
+
+        const maxSize = 1024 * 1024; // 1 MB
+        if (file.size > maxSize) {
+          const scale = Math.sqrt(maxSize / file.size) * 0.7;
+          width = img.width * scale;
+          height = img.height * scale;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const base64String = canvas.toDataURL("image/jpeg", 0.7);
+        resolve(base64String);
+      };
+
+      reader.readAsDataURL(file);
+    });
+  };
+
   const sendMessage = async () => {
-    if (!newMessage.trim() || !currentUser) return;
+    if (!newMessage.trim() && !fileInputRef.current?.files?.length) return;
+    if (!currentUser) return;
+
+    let imageBase64: string | undefined;
+    if (fileInputRef.current?.files?.[0]) {
+      const file = fileInputRef.current.files[0];
+      imageBase64 = await resizeImage(file);
+      fileInputRef.current.value = "";
+    }
 
     await addDoc(collection(db, "messages"), {
       text: newMessage,
@@ -145,10 +204,12 @@ export default function ChatRoom() {
       createdAt: Timestamp.now(),
       isRead: false,
       ...(replyingTo && { replyTo: replyingTo.id }),
+      ...(imageBase64 && { imageBase64 }),
     });
 
     setNewMessage("");
     setReplyingTo(null);
+    setShowEmojiPicker(false);
     inputRef.current?.focus();
   };
 
@@ -173,11 +234,28 @@ export default function ChatRoom() {
     }
   };
 
+  const handleEmojiClick = (emojiObject: { emoji: string }) => {
+    setNewMessage((prev) => prev + emojiObject.emoji);
+    setShowEmojiPicker(false);
+    inputRef.current?.focus();
+  };
+
+  const handleFileUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageClick = (imageBase64: string) => {
+    setZoomedImage(imageBase64);
+  };
+
+  const closeZoomedImage = () => {
+    setZoomedImage(null);
+  };
+
   const currentTheme = themes[theme as keyof typeof themes];
 
   return (
-    <div className={`min-h-screen text-white flex flex-col ${currentTheme.bg}`}>
-      {/* Fixed Header */}
+    <div className={`min-h-screen text-white flex flex-col ${currentTheme.bg} relative`}>
       <motion.header
         initial={{ y: -100 }}
         animate={{ y: 0 }}
@@ -221,7 +299,6 @@ export default function ChatRoom() {
         </select>
       </motion.header>
 
-      {/* Scrollable Chat Messages */}
       <div className="flex-1 pt-20 pb-20 overflow-y-auto">
         <div className="p-4 md:p-6 space-y-4 md:space-y-6">
           <AnimatePresence>
@@ -277,6 +354,14 @@ export default function ChatRoom() {
                         </div>
                       )}
                       {msg.text}
+                      {msg.imageBase64 && (
+                        <img
+                          src={msg.imageBase64}
+                          alt="Attachment"
+                          className="mt-2 max-w-full max-h-64 rounded-lg shadow-md object-contain cursor-pointer"
+                          onClick={() => handleImageClick(msg.imageBase64!)}
+                        />
+                      )}
                     </motion.div>
                     <button
                       ref={(el) => {
@@ -297,7 +382,6 @@ export default function ChatRoom() {
         </div>
       </div>
 
-      {/* Fixed Message Input */}
       <motion.footer
         initial={{ y: 100 }}
         animate={{ y: 0 }}
@@ -342,7 +426,7 @@ export default function ChatRoom() {
             </button>
           </div>
         )}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 relative">
           <input
             ref={inputRef}
             type="text"
@@ -352,6 +436,34 @@ export default function ChatRoom() {
             className={`flex-1 p-3 md:p-4 ${currentTheme.input} text-white rounded-xl outline-none shadow-md focus:ring-2 focus:ring-red-400 transition-all placeholder-gray-400 text-sm md:text-base glow-xs`}
             placeholder="Type a message..."
           />
+          <motion.button
+            onClick={handleFileUploadClick}
+            className="p-2 bg-gray-600 rounded-full hover:bg-gray-500 transition-all"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <Paperclip size={20} className="text-white" />
+          </motion.button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={sendMessage}
+          />
+          <motion.button
+            onClick={() => setShowEmojiPicker((prev) => !prev)}
+            className="p-2 bg-gray-600 rounded-full hover:bg-gray-500 transition-all"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <Smile size={20} className="text-white" />
+          </motion.button>
+          {showEmojiPicker && (
+            <div className="absolute bottom-16 right-16 z-30">
+              <EmojiPicker onEmojiClick={handleEmojiClick} />
+            </div>
+          )}
           <motion.button
             onClick={sendMessage}
             className={`p-2 md:p-3 ${currentTheme.button} rounded-full ${currentTheme.hoverButton} transition-all shadow-md hover:shadow-lg glow-sm`}
@@ -363,6 +475,43 @@ export default function ChatRoom() {
           </motion.button>
         </div>
       </motion.footer>
+
+      {zoomedImage && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50"
+          onClick={closeZoomedImage}
+        >
+          <div className="relative">
+            <img
+              src={zoomedImage}
+              alt="Zoomed Attachment"
+              className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-lg object-contain"
+            />
+            <button
+              onClick={closeZoomedImage}
+              className="absolute top-2 right-2 p-2 bg-gray-800 rounded-full hover:bg-gray-700 text-white"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

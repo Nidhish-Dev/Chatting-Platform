@@ -7,6 +7,7 @@ import { doc, onSnapshot, updateDoc, Timestamp, collection, getDocs } from "fire
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, ArrowLeft, User, LogOut, Reply, Paperclip, Smile } from "lucide-react";
 import { signOut } from "firebase/auth";
+import EmojiPicker from "emoji-picker-react";
 
 interface Message {
   id: string;
@@ -14,7 +15,7 @@ interface Message {
   sender: string;
   createdAt: Timestamp;
   replyTo?: string;
-  imageBase64?: string;
+  imageBase64?: string; // Still optional, can be undefined
 }
 
 interface User {
@@ -76,8 +77,6 @@ const themes = {
   },
 };
 
-const emojiList = ["😊", "😂", "❤️", "👍", "😢", "😡", "🎉", "🙌", "👀", "🤔"];
-
 export default function ChatGroupPage() {
   const [user, setUser] = useState(auth.currentUser);
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
@@ -88,13 +87,14 @@ export default function ChatGroupPage() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [theme, setTheme] = useState("love");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const router = useRouter();
   const params = useParams();
   const groupId = params.groupId as string;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const replyButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map()); // Reintroduced
+  const replyButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((authUser) => {
@@ -181,11 +181,9 @@ export default function ChatGroupPage() {
         const ctx = canvas.getContext("2d")!;
         let { width, height } = img;
 
-        // Check if file size exceeds 1 MB (1 MB = 1024 * 1024 bytes)
         const maxSize = 1024 * 1024; // 1 MB
         if (file.size > maxSize) {
-          // Calculate scaling factor to reduce size (approximate, as Base64 increases size by ~33%)
-          const scale = Math.sqrt(maxSize / file.size) * 0.7; // Target < 1 MB after Base64
+          const scale = Math.sqrt(maxSize / file.size) * 0.7;
           width = img.width * scale;
           height = img.height * scale;
         }
@@ -194,8 +192,7 @@ export default function ChatGroupPage() {
         canvas.height = height;
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert to Base64 with quality reduction if needed
-        const base64String = canvas.toDataURL("image/jpeg", 0.7); // 70% quality
+        const base64String = canvas.toDataURL("image/jpeg", 0.7);
         resolve(base64String);
       };
 
@@ -210,7 +207,7 @@ export default function ChatGroupPage() {
     let imageBase64: string | undefined;
     if (fileInputRef.current?.files?.[0]) {
       const file = fileInputRef.current.files[0];
-      imageBase64 = await resizeImage(file); // Resize if needed
+      imageBase64 = await resizeImage(file);
       fileInputRef.current.value = "";
     }
 
@@ -269,14 +266,22 @@ export default function ChatGroupPage() {
     router.push("/");
   };
 
-  const handleEmojiClick = (emoji: string) => {
-    setNewMessage((prev) => prev + emoji);
+  const handleEmojiClick = (emojiObject: { emoji: string }) => {
+    setNewMessage((prev) => prev + emojiObject.emoji);
     setShowEmojiPicker(false);
     inputRef.current?.focus();
   };
 
   const handleFileUploadClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleImageClick = (imageBase64: string) => {
+    setZoomedImage(imageBase64);
+  };
+
+  const closeZoomedImage = () => {
+    setZoomedImage(null);
   };
 
   if (!user) {
@@ -291,7 +296,7 @@ export default function ChatGroupPage() {
   const currentTheme = themes[theme as keyof typeof themes];
 
   return (
-    <div className={`min-h-screen ${currentTheme.bg} text-white flex flex-col`}>
+    <div className={`min-h-screen ${currentTheme.bg} text-white flex flex-col relative`}>
       <motion.header
         initial={{ y: -100 }}
         animate={{ y: 0 }}
@@ -399,13 +404,14 @@ export default function ChatGroupPage() {
                         <img
                           src={msg.imageBase64}
                           alt="Attachment"
-                          className="mt-2 max-w-full rounded-lg shadow-md"
+                          className="mt-2 max-w-full max-h-64 rounded-lg shadow-md object-contain cursor-pointer"
+                          onClick={() => handleImageClick(msg.imageBase64!)} // Non-null assertion since we check existence
                         />
                       )}
                     </motion.div>
                     <button
                       ref={(el) => {
-                        if (el) replyButtonRefs.current.set(msg.id, el); // Set ref correctly
+                        if (el) replyButtonRefs.current.set(msg.id, el);
                       }}
                       onClick={() => handleReply(msg)}
                       className="p-1 bg-gray-600 rounded-full hover:bg-gray-500 transition-colors"
@@ -497,16 +503,8 @@ export default function ChatGroupPage() {
               <Smile size={20} className="text-white" />
             </motion.button>
             {showEmojiPicker && (
-              <div className="absolute bottom-16 right-16 bg-gray-800 p-2 rounded-lg shadow-lg flex gap-2 flex-wrap z-30">
-                {emojiList.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => handleEmojiClick(emoji)}
-                    className="text-2xl hover:bg-gray-700 rounded p-1"
-                  >
-                    {emoji}
-                  </button>
-                ))}
+              <div className="absolute bottom-16 right-0 z-30">
+                <EmojiPicker onEmojiClick={handleEmojiClick} />
               </div>
             )}
             <motion.button
@@ -524,6 +522,43 @@ export default function ChatGroupPage() {
         <div className={`fixed bottom-0 left-0 right-0 z-20 p-4 md:p-6 ${currentTheme.header} backdrop-blur-xl shadow-lg border-t border-gray-700/50 text-center text-gray-400`}>
           You are not a member of this group.
         </div>
+      )}
+
+      {zoomedImage && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50"
+          onClick={closeZoomedImage}
+        >
+          <div className="relative">
+            <img
+              src={zoomedImage}
+              alt="Zoomed Attachment"
+              className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-lg object-contain"
+            />
+            <button
+              onClick={closeZoomedImage}
+              className="absolute top-2 right-2 p-2 bg-gray-800 rounded-full hover:bg-gray-700 text-white"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </motion.div>
       )}
     </div>
   );
