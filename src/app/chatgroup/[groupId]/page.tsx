@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { db, auth } from "@/app/lib/firebase";
 import { doc, onSnapshot, updateDoc, Timestamp, collection, getDocs } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, ArrowLeft, User, LogOut, Reply, Paperclip, Smile } from "lucide-react";
+import { Send, ArrowLeft, User, LogOut, Reply, Paperclip, Smile, Edit2, Info } from "lucide-react";
 import { signOut } from "firebase/auth";
 import EmojiPicker from "emoji-picker-react";
 
@@ -15,7 +15,7 @@ interface Message {
   sender: string;
   createdAt: Timestamp;
   replyTo?: string;
-  imageBase64?: string; // Still optional, can be undefined
+  imageBase64?: string;
 }
 
 interface User {
@@ -26,54 +26,59 @@ interface User {
 
 const themes = {
   love: {
-    bg: "bg-gradient-to-br from-red-900 via-pink-800 to-red-700",
-    header: "bg-red-900/90",
-    input: "bg-pink-800/80",
-    sent: "bg-gradient-to-r from-red-600 to-pink-500",
-    received: "bg-gradient-to-r from-gray-700 to-gray-600",
-    button: "bg-gradient-to-r from-red-500 to-pink-500",
-    hoverButton: "hover:from-red-600 hover:to-pink-600",
-    accent: "text-red-100",
+    bg: "bg-gradient-to-br from-rose-900 via-pink-700 to-rose-600",
+    header: "bg-rose-900/95",
+    input: "bg-pink-700/90",
+    sent: "bg-gradient-to-r from-rose-600 to-pink-500",
+    received: "bg-gradient-to-r from-gray-800 to-gray-700",
+    button: "bg-gradient-to-r from-rose-500 to-pink-500",
+    hoverButton: "hover:from-rose-600 hover:to-pink-600",
+    accent: "text-rose-100",
+    glow: "shadow-[0_0_15px_rgba(244,63,94,0.5)]",
   },
   dark: {
-    bg: "bg-gradient-to-br from-gray-900 via-gray-800 to-black",
-    header: "bg-gray-900/90",
-    input: "bg-gray-800/80",
+    bg: "bg-gradient-to-br from-gray-900 via-indigo-900 to-black",
+    header: "bg-gray-900/95",
+    input: "bg-indigo-900/90",
     sent: "bg-gradient-to-r from-indigo-600 to-blue-500",
-    received: "bg-gradient-to-r from-gray-700 to-gray-600",
+    received: "bg-gradient-to-r from-gray-800 to-gray-700",
     button: "bg-gradient-to-r from-indigo-500 to-blue-500",
     hoverButton: "hover:from-indigo-600 hover:to-blue-600",
     accent: "text-indigo-100",
+    glow: "shadow-[0_0_15px_rgba(99,102,241,0.5)]",
   },
   ocean: {
-    bg: "bg-gradient-to-br from-teal-900 via-blue-800 to-teal-700",
-    header: "bg-teal-900/90",
-    input: "bg-blue-800/80",
-    sent: "bg-gradient-to-r from-teal-600 to-blue-500",
-    received: "bg-gradient-to-r from-gray-700 to-gray-600",
-    button: "bg-gradient-to-r from-teal-500 to-blue-500",
-    hoverButton: "hover:from-teal-600 hover:to-blue-600",
+    bg: "bg-gradient-to-br from-teal-900 via-cyan-800 to-teal-700",
+    header: "bg-teal-900/95",
+    input: "bg-cyan-800/90",
+    sent: "bg-gradient-to-r from-teal-600 to-cyan-500",
+    received: "bg-gradient-to-r from-gray-800 to-gray-700",
+    button: "bg-gradient-to-r from-teal-500 to-cyan-500",
+    hoverButton: "hover:from-teal-600 hover:to-cyan-600",
     accent: "text-teal-100",
+    glow: "shadow-[0_0_15px_rgba(20,184,166,0.5)]",
   },
   forest: {
-    bg: "bg-gradient-to-br from-green-900 via-emerald-800 to-green-700",
-    header: "bg-green-900/90",
-    input: "bg-emerald-800/80",
-    sent: "bg-gradient-to-r from-green-600 to-emerald-500",
-    received: "bg-gradient-to-r from-gray-700 to-gray-600",
-    button: "bg-gradient-to-r from-green-500 to-emerald-500",
-    hoverButton: "hover:from-green-600 hover:to-emerald-600",
-    accent: "text-green-100",
+    bg: "bg-gradient-to-br from-emerald-900 via-green-800 to-emerald-700",
+    header: "bg-emerald-900/95",
+    input: "bg-green-800/90",
+    sent: "bg-gradient-to-r from-emerald-600 to-green-500",
+    received: "bg-gradient-to-r from-gray-800 to-gray-700",
+    button: "bg-gradient-to-r from-emerald-500 to-green-500",
+    hoverButton: "hover:from-emerald-600 hover:to-green-600",
+    accent: "text-emerald-100",
+    glow: "shadow-[0_0_15px_rgba(16,185,129,0.5)]",
   },
   sunset: {
-    bg: "bg-gradient-to-br from-orange-900 via-pink-800 to-purple-700",
-    header: "bg-orange-900/90",
-    input: "bg-pink-800/80",
-    sent: "bg-gradient-to-r from-orange-600 to-pink-500",
-    received: "bg-gradient-to-r from-gray-700 to-gray-600",
-    button: "bg-gradient-to-r from-orange-500 to-pink-500",
-    hoverButton: "hover:from-orange-600 hover:to-pink-600",
+    bg: "bg-gradient-to-br from-orange-900 via-rose-800 to-purple-700",
+    header: "bg-orange-900/95",
+    input: "bg-rose-800/90",
+    sent: "bg-gradient-to-r from-orange-600 to-rose-500",
+    received: "bg-gradient-to-r from-gray-800 to-gray-700",
+    button: "bg-gradient-to-r from-orange-500 to-rose-500",
+    hoverButton: "hover:from-orange-600 hover:to-rose-600",
     accent: "text-orange-100",
+    glow: "shadow-[0_0_15px_rgba(251,146,60,0.5)]",
   },
 };
 
@@ -85,16 +90,25 @@ export default function ChatGroupPage() {
   const [newMessage, setNewMessage] = useState("");
   const [userList, setUserList] = useState<User[]>([]);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [theme, setTheme] = useState("love");
+  const [theme, setTheme] = useState<keyof typeof themes>("love");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState("Group Chat");
+  const [tempGroupName, setTempGroupName] = useState("");
+  const [editingGroupName, setEditingGroupName] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [notifications, setNotifications] = useState<string[]>([]);
   const router = useRouter();
   const params = useParams();
   const groupId = params.groupId as string;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const replyButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const prevMessagesLength = useRef(0);
+  const isInitialLoad = useRef(true);
+
+  const currentTheme = themes[theme] || themes.love;
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((authUser) => {
@@ -110,12 +124,9 @@ export default function ChatGroupPage() {
     const unsubscribe = onSnapshot(groupRef, (groupDoc) => {
       if (groupDoc.exists()) {
         const groupData = groupDoc.data();
+        setGroupName(groupData.name || "Group Chat");
         const members = groupData.members || [];
         setGroupMembers(members);
-
-        if (!members.includes(user.uid)) {
-          setNewMessage("");
-        }
 
         const fetchedMessages = (groupData.messages || []).map((msg: any) => ({
           id: msg.id || `${msg.createdAt?.toMillis?.() || Date.now()}`,
@@ -127,6 +138,23 @@ export default function ChatGroupPage() {
         }));
 
         setMessages(fetchedMessages);
+
+        // Scroll to bottom on initial load or when new messages arrive
+        if (isInitialLoad.current || fetchedMessages.length > prevMessagesLength.current) {
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          }, 100); // Small delay to ensure DOM updates
+        }
+
+        // Show notification if tab is not focused
+        if (fetchedMessages.length > prevMessagesLength.current && document.hidden) {
+          const latestMessage = fetchedMessages[fetchedMessages.length - 1];
+          const senderName = userList.find((u) => u.uid === latestMessage.sender)?.displayName || "Unknown";
+          setNotifications((prev) => [...prev, `New message from ${senderName}`]);
+        }
+
+        prevMessagesLength.current = fetchedMessages.length;
+        isInitialLoad.current = false; // Mark initial load as complete
       } else {
         router.push("/");
       }
@@ -149,7 +177,7 @@ export default function ChatGroupPage() {
 
     fetchUsers();
     return () => unsubscribe();
-  }, [user, groupId, router]);
+  }, [user, groupId, router, userList]);
 
   useEffect(() => {
     updateMemberNames(userList, groupMembers);
@@ -162,10 +190,6 @@ export default function ChatGroupPage() {
     });
     setMemberNames(names);
   };
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve) => {
@@ -181,7 +205,7 @@ export default function ChatGroupPage() {
         const ctx = canvas.getContext("2d")!;
         let { width, height } = img;
 
-        const maxSize = 1024 * 1024; // 1 MB
+        const maxSize = 1024 * 1024;
         if (file.size > maxSize) {
           const scale = Math.sqrt(maxSize / file.size) * 0.7;
           width = img.width * scale;
@@ -217,7 +241,7 @@ export default function ChatGroupPage() {
       createdAt: Timestamp.now(),
       ...(replyingTo && { replyTo: replyingTo.id }),
       ...(imageBase64 && { imageBase64 }),
-      id: "",
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
     };
 
     const groupRef = doc(db, "chatGroups", groupId);
@@ -244,20 +268,25 @@ export default function ChatGroupPage() {
     inputRef.current?.focus();
   };
 
-  const cancelReply = () => {
-    const messageId = replyingTo?.id;
-    setReplyingTo(null);
-    if (messageId) {
-      replyButtonRefs.current.get(messageId)?.focus();
+  const handleEditGroupName = async () => {
+    if (editingGroupName) {
+      if (tempGroupName.trim()) {
+        const groupRef = doc(db, "chatGroups", groupId);
+        await updateDoc(groupRef, { name: tempGroupName });
+        setGroupName(tempGroupName);
+      }
+      setEditingGroupName(false);
+    } else {
+      setTempGroupName(groupName);
+      setEditingGroupName(true);
     }
   };
 
-  const scrollToMessage = (messageId: string) => {
-    const element = document.getElementById(`message-${messageId}`);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-      element.focus();
-    }
+  const addMember = async (uid: string) => {
+    if (!uid || groupMembers.includes(uid)) return;
+    const groupRef = doc(db, "chatGroups", groupId);
+    const updatedMembers = [...groupMembers, uid];
+    await updateDoc(groupRef, { members: updatedMembers });
   };
 
   const handleLogout = async () => {
@@ -286,206 +315,188 @@ export default function ChatGroupPage() {
 
   if (!user) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${themes.love.bg} text-white`}>
+      <div className={`min-h-screen ${currentTheme.bg} text-white flex items-center justify-center`}>
         <p>Please log in to view the chat.</p>
       </div>
     );
   }
 
-  const isMember = groupMembers.includes(user.uid);
-  const currentTheme = themes[theme as keyof typeof themes];
-
   return (
-    <div className={`min-h-screen ${currentTheme.bg} text-white flex flex-col relative`}>
+    <div className={`min-h-screen ${currentTheme.bg} text-white flex flex-col relative overflow-hidden`}>
+      {/* Enhanced Background Effects */}
+      <div className="fixed inset-0 pointer-events-none">
+        {Array.from({ length: 30 }).map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute rounded-full"
+            initial={{
+              x: Math.random() * window.innerWidth,
+              y: Math.random() * window.innerHeight,
+              scale: Math.random() * 0.3 + 0.1,
+              backgroundColor: `${currentTheme.accent}33`,
+            }}
+            animate={{
+              y: [null, -100],
+              opacity: [0, 0.2, 0],
+              transition: { duration: Math.random() * 5 + 3, repeat: Infinity, ease: "easeOut" },
+            }}
+            style={{ width: 15, height: 15 }}
+          />
+        ))}
+      </div>
+
+      {/* Header */}
       <motion.header
         initial={{ y: -100 }}
         animate={{ y: 0 }}
-        transition={{ type: "spring", stiffness: 120 }}
-        className={`fixed top-0 left-0 right-0 z-20 px-4 py-3 md:px-6 md:py-4 ${currentTheme.header} backdrop-blur-xl shadow-lg border-b border-gray-700/50 flex items-center justify-between`}
+        transition={{ type: "spring", stiffness: 100 }}
+        className={`${currentTheme.header} fixed top-0 left-0 right-0 z-30 p-4 backdrop-blur-md ${currentTheme.glow}`}
       >
-        <button
-          onClick={() => router.push("/")}
-          className="p-2 md:p-3 rounded-full bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105"
-        >
-          <ArrowLeft size={20} className="text-white" />
-        </button>
-        <div className="flex-1 flex items-center justify-center gap-2 flex-wrap">
-          {memberNames.map((name, index) => (
-            <motion.span
-              key={index}
-              className={`text-sm md:text-base font-medium ${currentTheme.accent} drop-shadow-md`}
-              whileHover={{ scale: 1.1 }}
-            >
-              {name}
-            </motion.span>
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={theme}
-            onChange={(e) => setTheme(e.target.value)}
-            className="p-2 bg-gray-800 text-white rounded-md"
-          >
-            <option value="love">Love</option>
-            <option value="dark">Dark</option>
-            <option value="ocean">Ocean</option>
-            <option value="forest">Forest</option>
-            <option value="sunset">Sunset</option>
-          </select>
+        <div className="flex items-center justify-between max-w-5xl mx-auto">
           <motion.button
-            onClick={handleLogout}
-            className="p-2 md:p-3 bg-red-500 rounded-full hover:bg-red-600 transition-all shadow-md hover:shadow-lg"
             whileHover={{ scale: 1.1 }}
+            onClick={() => router.push("/")}
+            className="p-2 hover:bg-white/10 rounded-full transition-all"
           >
-            <LogOut size={20} className="text-white" />
+            <ArrowLeft size={24} />
           </motion.button>
+
+          <div className="flex items-center gap-2">
+            {editingGroupName ? (
+              <input
+                value={tempGroupName}
+                onChange={(e) => setTempGroupName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleEditGroupName()}
+                className="bg-transparent border-b border-white/50 focus:outline-none text-xl font-semibold text-white"
+                autoFocus
+              />
+            ) : (
+              <h1 className="text-xl font-semibold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                {groupName}
+              </h1>
+            )}
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              onClick={handleEditGroupName}
+              className="p-2 hover:bg-white/10 rounded-full"
+            >
+              <Edit2 size={18} />
+            </motion.button>
+          </div>
+
+          <div className="flex gap-2">
+            <select
+              value={theme}
+              onChange={(e) => setTheme(e.target.value as keyof typeof themes)}
+              className="p-2 bg-gray-800/80 text-white rounded-md focus:ring-2 focus:ring-white/50"
+            >
+              <option value="love">Love</option>
+              <option value="dark">Dark</option>
+              <option value="ocean">Ocean</option>
+              <option value="forest">Forest</option>
+              <option value="sunset">Sunset</option>
+            </select>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              onClick={() => setShowInfoModal(true)}
+              className="p-2 hover:bg-white/10 rounded-full"
+            >
+              <Info size={24} />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              onClick={handleLogout}
+              className="p-2 hover:bg-white/10 rounded-full"
+            >
+              <LogOut size={24} />
+            </motion.button>
+          </div>
         </div>
       </motion.header>
 
-      <div className="flex-1 pt-20 pb-20 overflow-y-auto">
-        <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-          <AnimatePresence>
-            {messages.map((msg) => {
-              const sender = userList.find((u) => u.uid === msg.sender);
-              const senderName = sender?.displayName || "Unknown User";
-              const repliedToMessage = msg.replyTo
-                ? messages.find((m) => m.id === msg.replyTo)
-                : null;
-              const repliedToSender = repliedToMessage
-                ? userList.find((u) => u.uid === repliedToMessage.sender)?.displayName || "Unknown User"
-                : null;
-
-              return (
-                <motion.div
-                  id={`message-${msg.id}`}
-                  tabIndex={-1}
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 30, rotateX: "-90deg" }}
-                  animate={{ opacity: 1, y: 0, rotateX: "0deg" }}
-                  exit={{ opacity: 0, y: -30, rotateX: "90deg" }}
-                  transition={{ type: "spring", stiffness: 150 }}
-                  className={`flex items-end ${msg.sender === user.uid ? "justify-end" : "justify-start"} relative`}
+      {/* Messages Area */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 pt-20 pb-24 px-4 overflow-y-auto max-w-5xl mx-auto w-full"
+      >
+        <AnimatePresence>
+          {messages.map((msg) => {
+            const sender = userList.find((u) => u.uid === msg.sender);
+            const senderName = sender?.displayName || "Unknown User";
+            return (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: "spring", stiffness: 150 }}
+                className={`flex ${msg.sender === user.uid ? "justify-end" : "justify-start"} mb-4`}
+              >
+                <div
+                  className={`flex items-end gap-2 max-w-[70%] group ${msg.sender === user.uid ? "flex-row-reverse" : ""}`}
                 >
                   {msg.sender !== user.uid && (
-                    sender?.photoURL ? (
-                      <motion.img
-                        src={sender.photoURL}
-                        alt={`${senderName}'s avatar`}
-                        className="w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-gray-700 shadow-md mr-2 md:mr-3 glow-xs"
-                        whileHover={{ scale: 1.1, rotate: 5 }}
-                      />
-                    ) : (
-                      <User className="w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-gray-700 bg-gray-700 p-2 mr-2 md:mr-3 shadow-md glow-xs" />
-                    )
+                    <motion.img
+                      src={sender?.photoURL || "/default-avatar.png"}
+                      alt={`${senderName}'s avatar`}
+                      className="w-10 h-10 rounded-full border-2 border-white/20"
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      onError={(e) => (e.currentTarget.src = "/default-avatar.png")}
+                    />
                   )}
-                  <div className="relative flex items-start gap-2">
-                    <motion.div
-                      className={`p-3 md:p-4 rounded-2xl max-w-xs md:max-w-md shadow-lg hover:shadow-xl transition-all ${
-                        msg.sender === user.uid ? currentTheme.sent : currentTheme.received
-                      } text-sm md:text-base font-medium`}
-                      whileHover={{ scale: 1.03, zIndex: 10 }}
-                    >
-                      {repliedToMessage && (
-                        <div
-                          className="mb-2 p-2 bg-gray-800/80 rounded-lg text-xs border-l-4 border-red-500 cursor-pointer hover:bg-gray-700/80 transition-colors"
-                          onClick={() => scrollToMessage(repliedToMessage.id)}
-                          onKeyDown={(e) => e.key === "Enter" && scrollToMessage(repliedToMessage.id)}
-                          tabIndex={0}
-                        >
-                          <span className="block font-semibold text-red-300">
-                            Replying to {repliedToSender}
-                          </span>
-                          <span className="block truncate">{repliedToMessage.text}</span>
-                        </div>
-                      )}
-                      <span className="block font-bold">{senderName}</span>
-                      {msg.text && <span>{msg.text}</span>}
-                      {msg.imageBase64 && (
-                        <img
-                          src={msg.imageBase64}
-                          alt="Attachment"
-                          className="mt-2 max-w-full max-h-64 rounded-lg shadow-md object-contain cursor-pointer"
-                          onClick={() => handleImageClick(msg.imageBase64!)} // Non-null assertion since we check existence
-                        />
-                      )}
-                    </motion.div>
-                    <button
-                      ref={(el) => {
-                        if (el) replyButtonRefs.current.set(msg.id, el);
-                      }}
-                      onClick={() => handleReply(msg)}
-                      className="p-1 bg-gray-600 rounded-full hover:bg-gray-500 transition-colors"
-                    >
-                      <Reply size={16} className="text-white" />
-                    </button>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-          <div ref={messagesEndRef} />
-        </div>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    className={`p-4 rounded-2xl ${msg.sender === user.uid ? currentTheme.sent : "bg-white/10"} ${currentTheme.glow} shadow-lg`}
+                  >
+                    <p className="font-semibold text-sm">{senderName}</p>
+                    {msg.text && <p className="mt-1">{msg.text}</p>}
+                    {msg.imageBase64 && (
+                      <img
+                        src={msg.imageBase64}
+                        alt="Attachment"
+                        className="mt-2 rounded-lg max-w-full cursor-pointer"
+                        onClick={() => handleImageClick(msg.imageBase64!)}
+                      />
+                    )}
+                  </motion.div>
+                  <motion.button
+                    initial={{ opacity: 0 }}
+                    whileHover={{ opacity: 1 }}
+                    className="p-2 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-full"
+                    onClick={() => handleReply(msg)}
+                  >
+                    <Reply size={16} />
+                  </motion.button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+        <div ref={messagesEndRef} />
       </div>
 
-      {isMember && (
+      {/* Footer/Input */}
+      {groupMembers.includes(user.uid) && (
         <motion.footer
           initial={{ y: 100 }}
           animate={{ y: 0 }}
-          transition={{ type: "spring", stiffness: 120 }}
-          className={`fixed bottom-0 left-0 right-0 z-20 p-4 md:p-6 ${currentTheme.header} backdrop-blur-xl shadow-lg border-t border-gray-700/50 flex flex-col gap-3`}
+          transition={{ type: "spring", stiffness: 100 }}
+          className={`${currentTheme.header} fixed bottom-0 left-0 right-0 z-30 p-4 backdrop-blur-md ${currentTheme.glow}`}
         >
-          {replyingTo && (
-            <div
-              className="flex items-center justify-between p-2 bg-gray-800/80 rounded-xl shadow-md border border-red-500/50"
-            >
-              <div className="flex items-center gap-2">
-                <Reply size={16} className="text-red-400" />
-                <span className="text-sm text-gray-300">
-                  Replying to{" "}
-                  {userList.find((u) => u.uid === replyingTo.sender)?.displayName || "Unknown User"}:{" "}
-                  {replyingTo.text.length > 30
-                    ? replyingTo.text.substring(0, 30) + "..."
-                    : replyingTo.text}
-                </span>
-              </div>
-              <button
-                onClick={cancelReply}
-                className="text-gray-400 hover:text-white"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-          )}
-          <div className="flex items-center gap-3 relative">
+          <div className="max-w-5xl mx-auto flex items-center gap-3">
             <input
               ref={inputRef}
-              type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-              className={`flex-1 p-3 md:p-4 ${currentTheme.input} text-white rounded-xl outline-none shadow-md focus:ring-2 focus:ring-red-400 transition-all placeholder-gray-400 text-sm md:text-base glow-xs`}
+              className={`${currentTheme.input} flex-1 p-3 rounded-full focus:ring-2 focus:ring-white/50 ${currentTheme.glow}`}
               placeholder="Type a message..."
             />
             <motion.button
-              onClick={handleFileUploadClick}
-              className="p-2 bg-gray-600 rounded-full hover:bg-gray-500 transition-all"
               whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+              onClick={handleFileUploadClick}
+              className="p-2 hover:bg-white/10 rounded-full"
             >
-              <Paperclip size={20} className="text-white" />
+              <Paperclip size={20} />
             </motion.button>
             <input
               ref={fileInputRef}
@@ -495,69 +506,132 @@ export default function ChatGroupPage() {
               onChange={handleSendMessage}
             />
             <motion.button
-              onClick={() => setShowEmojiPicker((prev) => !prev)}
-              className="p-2 bg-gray-600 rounded-full hover:bg-gray-500 transition-all"
               whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className="p-2 hover:bg-white/10 rounded-full"
             >
-              <Smile size={20} className="text-white" />
+              <Smile size={20} />
             </motion.button>
-            {showEmojiPicker && (
-              <div className="absolute bottom-16 right-0 z-30">
-                <EmojiPicker onEmojiClick={handleEmojiClick} />
-              </div>
-            )}
             <motion.button
-              onClick={handleSendMessage}
-              className={`p-2 md:p-3 ${currentTheme.button} rounded-full ${currentTheme.hoverButton} transition-all shadow-md hover:shadow-lg glow-sm`}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
+              onClick={handleSendMessage}
+              className={`${currentTheme.button} p-2 rounded-full ${currentTheme.hoverButton} ${currentTheme.glow}`}
             >
-              <Send size={20} className="text-white" />
+              <Send size={20} />
             </motion.button>
           </div>
+          {showEmojiPicker && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 150 }}
+              className="absolute bottom-16 right-4"
+            >
+              <EmojiPicker onEmojiClick={handleEmojiClick} />
+            </motion.div>
+          )}
         </motion.footer>
       )}
-      {!isMember && (
-        <div className={`fixed bottom-0 left-0 right-0 z-20 p-4 md:p-6 ${currentTheme.header} backdrop-blur-xl shadow-lg border-t border-gray-700/50 text-center text-gray-400`}>
-          You are not a member of this group.
-        </div>
+
+      {/* Info Modal */}
+      {showInfoModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center"
+          onClick={() => setShowInfoModal(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 150 }}
+            className="bg-gray-900 p-6 rounded-xl max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-2xl font-bold mb-4">Group Info</h2>
+            <p className="mb-2"><strong>Members:</strong></p>
+            <ul className="space-y-2 mb-4">
+              {memberNames.map((name, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <User size={16} /> {name}
+                </li>
+              ))}
+            </ul>
+            <p className="mb-2"><strong>Add Member:</strong></p>
+            <select
+              onChange={(e) => addMember(e.target.value)}
+              className="w-full p-2 bg-gray-800 rounded-md mb-4"
+            >
+              <option value="">Select a user</option>
+              {userList
+                .filter((u) => !groupMembers.includes(u.uid))
+                .map((u) => (
+                  <option key={u.uid} value={u.uid}>
+                    {u.displayName}
+                  </option>
+                ))}
+            </select>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              onClick={() => setShowInfoModal(false)}
+              className="w-full p-2 bg-red-500 rounded-md hover:bg-red-600"
+            >
+              Close
+            </motion.button>
+          </motion.div>
+        </motion.div>
       )}
 
+      {/* Notifications */}
+      <div className="fixed top-20 right-4 space-y-2 z-50">
+        <AnimatePresence>
+          {notifications.map((notif, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 100 }}
+              transition={{ type: "spring", stiffness: 150 }}
+              className="bg-gray-800 p-3 rounded-lg shadow-lg cursor-pointer"
+              onClick={() => setNotifications((prev) => prev.filter((_, idx) => idx !== i))}
+            >
+              {notif}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* Zoomed Image Modal */}
       {zoomedImage && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center"
           onClick={closeZoomedImage}
         >
-          <div className="relative">
-            <img
-              src={zoomedImage}
-              alt="Zoomed Attachment"
-              className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-lg object-contain"
-            />
-            <button
-              onClick={closeZoomedImage}
-              className="absolute top-2 right-2 p-2 bg-gray-800 rounded-full hover:bg-gray-700 text-white"
+          <motion.img
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            src={zoomedImage}
+            alt="Zoomed Attachment"
+            className="max-w-[90vw] max-h-[90vh] rounded-lg"
+          />
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            onClick={closeZoomedImage}
+            className="absolute top-4 right-4 p-2 bg-gray-800 rounded-full hover:bg-gray-700"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </motion.button>
         </motion.div>
       )}
     </div>
